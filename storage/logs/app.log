@@ -1,0 +1,2 @@
+[2026-09-13 14:52:18] ERROR: Uncaught exception: Failed opening required 'C:\xampp\htdocs\hrms/routes/web.php' (include_path='C:\xampp\php\PEAR') {"file":"C:\\xampp\\htdocs\\hrms\\public\\index.php","line":79}
+[2026-09-13 15:18:00] ERROR: Database connection failed: SQLSTATE[HY000] [1049] Unknown database 'hrmss' 

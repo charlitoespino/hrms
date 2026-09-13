@@ -1,0 +1,8 @@
+RewriteEngine On
+
+# If the request is already inside /public/, stop rewriting (avoid loops)
+RewriteCond %{REQUEST_URI} ^/hrms/public/ [NC]
+RewriteRule ^ - [L]
+
+# Otherwise, forward everything to /public/
+RewriteRule ^(.*)$ public/$1 [L]

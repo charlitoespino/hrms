@@ -3,14 +3,47 @@ declare(strict_types=1);
 
 /**
  * Front controller / entry point.
+ *
+ * Bootstrap order matters:
+ *   1. BASE_PATH
+ *   2. app/Helpers/env.php  (defines env(), load_env(), config())
+ *   3. load_env()           (parses .env into getenv/$_ENV)
+ *   4. config()             (loads config/config.php once and caches it)
+ *   5. config/database.php, app/Helpers/View.php
+ *   6. Class autoloader
  */
 
+// ---------------------------------------------------------------
+// 1) BASE_PATH must be defined before ANY require that uses it.
+// ---------------------------------------------------------------
 define('BASE_PATH', dirname(__DIR__));
 
-// Load config first (also populates env)
-$config = require BASE_PATH . '/config/config.php';
+// ---------------------------------------------------------------
+// 2) Functions first. env.php declares env/load_env/config.
+//    It is guarded with function_exists() so double-include is safe.
+// ---------------------------------------------------------------
+require BASE_PATH . '/app/Helpers/env.php';
 
-// Autoload helpers & core (very small PSR-4-ish loader)
+// ---------------------------------------------------------------
+// 3) Parse the .env file now that load_env() exists.
+// ---------------------------------------------------------------
+load_env(BASE_PATH . '/.env');
+
+// ---------------------------------------------------------------
+// 4) Load config once (pure array; no functions declared in it).
+// ---------------------------------------------------------------
+$config = config();
+
+// ---------------------------------------------------------------
+// 5) Files that don't contain a class (or whose class lives outside
+//    the autoload paths) must be required explicitly.
+// ---------------------------------------------------------------
+require BASE_PATH . '/config/database.php';
+require BASE_PATH . '/app/Helpers/View.php'; // also defines e(), url(), asset()
+
+// ---------------------------------------------------------------
+// 6) Autoloader for classes under app/.
+// ---------------------------------------------------------------
 spl_autoload_register(function (string $class): void {
     $dirs = [
         BASE_PATH . '/app/Controllers',
@@ -29,14 +62,11 @@ spl_autoload_register(function (string $class): void {
     }
 });
 
-// Load helper functions (env, url, e, etc.)
-require BASE_PATH . '/app/Helpers/env.php';
-require BASE_PATH . '/app/Helpers/View.php'; // also defines e() and url()
-
-// Timezone
+// ---------------------------------------------------------------
+// Timezone + error handling
+// ---------------------------------------------------------------
 date_default_timezone_set($config['app']['timezone'] ?? 'Asia/Manila');
 
-// Error handling
 if (($config['app']['debug'] ?? false) === false) {
     ini_set('display_errors', '0');
     error_reporting(E_ALL & ~E_DEPRECATED & ~E_STRICT);
@@ -45,7 +75,9 @@ if (($config['app']['debug'] ?? false) === false) {
     error_reporting(E_ALL);
 }
 
+// ---------------------------------------------------------------
 // Secure session configuration
+// ---------------------------------------------------------------
 session_name($config['session']['name']);
 session_set_cookie_params([
     'lifetime' => 0,
@@ -57,7 +89,9 @@ session_set_cookie_params([
 ]);
 session_start();
 
-// Global exception handler
+// ---------------------------------------------------------------
+// Global exception handler — logs technical detail, shows friendly text.
+// ---------------------------------------------------------------
 set_exception_handler(function (Throwable $e) use ($config): void {
     Logger::error('Uncaught exception: ' . $e->getMessage(), [
         'file' => $e->getFile(),
@@ -72,12 +106,14 @@ set_exception_handler(function (Throwable $e) use ($config): void {
         . '<a href="javascript:history.back()">Go back</a></body></html>';
 });
 
-// Determine route
+// ---------------------------------------------------------------
+// Router
+// ---------------------------------------------------------------
 $router = require BASE_PATH . '/routes/web.php';
 $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 $uri    = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
 
-// Strip base path (so /hrms/employees works when hosted in a subdir)
+// Strip the app's base path so it also works when hosted in a subdirectory.
 $basePath = parse_url($config['app']['url'], PHP_URL_PATH) ?: '';
 if ($basePath !== '' && str_starts_with($uri, $basePath)) {
     $uri = substr($uri, strlen($basePath));

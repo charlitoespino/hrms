@@ -1,9 +1,6 @@
 <?php
 declare(strict_types=1);
 
-/**
- * PDO connection factory (singleton).
- */
 final class Database
 {
     private static ?PDO $pdo = null;
@@ -14,9 +11,7 @@ final class Database
             return self::$pdo;
         }
 
-        $config = require BASE_PATH . '/config/config.php';
-        $db = $config['db'];
-
+        $db  = config('db');                     // cached, loaded once
         $dsn = sprintf(
             'mysql:host=%s;port=%d;dbname=%s;charset=%s',
             $db['host'], $db['port'], $db['name'], $db['charset']
